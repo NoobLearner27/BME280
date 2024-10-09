@@ -23,18 +23,14 @@
 #include<stdio.h>
 
 
-
-
-
-
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 
 /* USER CODE BEGIN PFP */
 	SPI_HandleTypeDef hspi1 ; // SPI Handle for SPI1
-	int8_t spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to read the data from sensor
-	int8_t spi_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to write data to sensor
+	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to read the data from sensor
+	int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to write data to sensor
 
 	void user_delay_us(uint32_t period, void *intf_ptr) {
 		HAL_Delay(period / 1000);  //  for millisecond delay
@@ -56,7 +52,7 @@ static void MX_SPI1_Init(void);
   	  	  int8_t rslt;
   	  	    uint8_t cs_pin = GPIO_PIN_4 ;  // chip select pin / NSS pin
 
-  	  	int8_t spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr) {
+  	  	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr) {
   	  				    uint8_t cs_pin = *(uint8_t *)intf_ptr;
 
   	  	    // Set the MSB of reg_addr for reading (MSB = 1)
@@ -86,7 +82,7 @@ static void MX_SPI1_Init(void);
   	  			}
 
 
-  	  	  int8_t spi_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr) {
+  	  	  int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr) {
   	  	  uint8_t cs_pin = *(uint8_t *)intf_ptr;
 
   	  	  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
