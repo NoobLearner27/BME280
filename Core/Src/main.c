@@ -17,7 +17,7 @@
  */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-include "main.h"
+#include "main.h"
 #include"bme280.h"
 #include<stdint.h>
 #include<stdio.h>
