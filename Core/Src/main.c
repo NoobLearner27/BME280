@@ -1,281 +1,257 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
+include "main.h"
 #include"bme280.h"
 #include<stdint.h>
 #include<stdio.h>
-
 
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 
 /* USER CODE BEGIN PFP */
-	SPI_HandleTypeDef hspi1 ; // SPI Handle for SPI1
-	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to read the data from sensor
-	int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to write data to sensor
+SPI_HandleTypeDef hspi1; // SPI Handle for SPI1
+int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr); // to read the data from sensor
+int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len,
+		void *intf_ptr);  // to write data to sensor
 
-	void user_delay_us(uint32_t period, void *intf_ptr) {
-		HAL_Delay(period / 1000);  //  for millisecond delay
+void user_delay_us(uint32_t period, void *intf_ptr) {
+	HAL_Delay(period / 1000);  //  for millisecond delay
+}
+
+int main(void) {
+
+	HAL_Init();
+	SystemClock_Config();
+	MX_GPIO_Init();
+	MX_SPI1_Init();
+
+	struct bme280_dev dev;
+	struct bme280_settings settings;
+	struct bme280_data comp_data;
+
+	int8_t rslt;
+	uint8_t cs_pin = GPIO_PIN_4;  // chip select pin / NSS pin
+
+	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
+	{
+		uint8_t cs_pin = *(uint8_t*) intf_ptr;
+
+		// Set the MSB of reg_addr for reading (MSB = 1)
+		reg_addr |= 0x80;
+		//  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
+
+		// Pull CS low to select the sensor
+		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
+
+		// Send the register address
+		if (HAL_SPI_Transmit(&hspi1, &reg_addr, 1, HAL_MAX_DELAY) != HAL_OK) {
+			printf("Failed to send read register address\n");
+			HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET); // Pull CS high on error
+			return BME280_E_COMM_FAIL;
+		}
+
+		// Receive the data
+		if (HAL_SPI_Receive(&hspi1, reg_data, len, HAL_MAX_DELAY) != HAL_OK) {
+			printf("Failed to receive data\n");
+			HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET); // Pull CS high on error
+			return BME280_E_COMM_FAIL;
+		}
+
+		// Pull CS high to deselect the sensor
+		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
+		return BME280_OK;
 	}
 
-	int main(void)
-	{
+	int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr) {
+		uint8_t cs_pin = *(uint8_t*) intf_ptr;
 
-		HAL_Init();
-		SystemClock_Config();
-		MX_GPIO_Init();
-		MX_SPI1_Init();
+		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
 
+		// Printing register address
+		printf("Writing to register 0x%02X\n", reg_addr);
 
-		struct bme280_dev dev;
-		struct bme280_settings settings;
-		struct bme280_data comp_data;
+		if (HAL_SPI_Transmit(&hspi1, &reg_addr, 1, HAL_MAX_DELAY) != HAL_OK) {
+			printf("Failed to send register address\n");
+			return -1;
+		}
 
-  	  	  int8_t rslt;
-  	  	    uint8_t cs_pin = GPIO_PIN_4 ;  // chip select pin / NSS pin
+		if (HAL_SPI_Transmit(&hspi1, (uint8_t*) reg_data, len, HAL_MAX_DELAY)
+				!= HAL_OK) {
+			printf("Failed to send data\n");
+			return -1;
+		}
 
-  	  	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr) {
-  	  				    uint8_t cs_pin = *(uint8_t *)intf_ptr;
+		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
 
-  	  	    // Set the MSB of reg_addr for reading (MSB = 1)
-  	  	        reg_addr |= 0x80;
-  	  	    //  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
+		return 0;
+	}
 
-  	  		// Pull CS low to select the sensor
-  	  			HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
+	// Initialize the sensor
 
-  	  		// Send the register address
-  	  			if (HAL_SPI_Transmit(&hspi1, &reg_addr, 1, HAL_MAX_DELAY) != HAL_OK) {
-  	  				printf("Failed to send read register address\n");
-  	  				HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);  // Pull CS high on error
-  	  				return BME280_E_COMM_FAIL;
-  	  			}
+	dev.intf_ptr = &cs_pin;
+	dev.intf = BME280_SPI_INTF;
+	dev.read = spi_read;
+	dev.write = spi_write;
+	dev.delay_us = user_delay_us;
 
-  	  		// Receive the data
-  	  			if (HAL_SPI_Receive(&hspi1, reg_data, len, HAL_MAX_DELAY) != HAL_OK) {
-  	  				printf("Failed to receive data\n");
-  	  				HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);  // Pull CS high on error
-  	  				return BME280_E_COMM_FAIL;
-  	  			}
+	rslt = bme280_init(&dev);
 
-  	  		// Pull CS high to deselect the sensor
-  	  			HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
-  	  			return BME280_OK;
-  	  			}
+	// Check if the initialization was successful
+	if (rslt == BME280_OK) {
+		printf("BME280 initialization successful!\n");
+	} else {
+		printf("BME280 initialization failed with code: %d\n", rslt);
+		return 0;
+	}
+	// settings configuration for BME280
+	uint8_t settings_sel;
+	settings.osr_h = BME280_OVERSAMPLING_16X;
+	settings.osr_p = BME280_OVERSAMPLING_16X;
+	settings.osr_p = BME280_OVERSAMPLING_16X;
+	settings.filter = BME280_FILTER_COEFF_16;
+	settings.standby_time = BME280_STANDBY_TIME_1000_MS;
 
+	settings_sel = BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP| BME280_SEL_OSR_HUM | BME280_SEL_FILTER | BME280_SEL_STANDBY;
+	bme280_set_sensor_settings(settings_sel, &settings, &dev); // applying setting configurations to sensor
+	bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev); // applying sensor mode
 
-  	  	  int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr) {
-  	  	  uint8_t cs_pin = *(uint8_t *)intf_ptr;
+	/* USER CODE END 2 */
 
-  	  	  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
-
-  	  	  // Printing register address
-  	  	  printf("Writing to register 0x%02X\n", reg_addr);
-
-  	  	  if (HAL_SPI_Transmit(&hspi1, &reg_addr, 1, HAL_MAX_DELAY) != HAL_OK) {
-  	  		  printf("Failed to send register address\n");
-  	  		  return -1;
-  	  	  }
-
-  	  	  if (HAL_SPI_Transmit(&hspi1, (uint8_t *)reg_data, len, HAL_MAX_DELAY) != HAL_OK) {
-  	  		  printf("Failed to send data\n");
-  	  		  return -1;
-  	  	  }
-
-  	  	  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
-
-  	  	  return 0;
-  	  	  }
-
-
-
-  	  	// Initialize the sensor
-
-		dev.intf_ptr = &cs_pin ;
-		dev.intf = BME280_SPI_INTF ;
-		dev.read = spi_read;
-		dev.write = spi_write;
-		dev.delay_us =  user_delay_us;
-
-
-       rslt = bme280_init(&dev);
-
-       // Check if the initialization was successful
-       if (rslt == BME280_OK) {
-          printf("BME280 initialization successful!\n");
-       } else {
-          printf("BME280 initialization failed with code: %d\n", rslt);
-          return 0;
-       }
-
-      // settings configuration for BME280
-      uint8_t settings_sel;
-      settings.osr_h = BME280_OVERSAMPLING_16X;
-      settings.osr_p = BME280_OVERSAMPLING_16X;
-      settings.osr_p = BME280_OVERSAMPLING_16X;
-      settings.filter = BME280_FILTER_COEFF_16;
-      settings.standby_time = BME280_STANDBY_TIME_1000_MS;
-
-
-	  settings_sel = BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP | BME280_SEL_OSR_HUM | BME280_SEL_FILTER | BME280_SEL_STANDBY;
-	  bme280_set_sensor_settings(settings_sel,&settings,  &dev);  // applying setting configurations to sensor
-	  bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev);      // applying sensor mode
-
-//	  bme280_compensate_data(BME280_ALL,);
-	  // Process and print the data
-//	  printf("Temperature: %0.2f °C\n", comp_data.temperature);
-//	  printf("Pressure: %0.2f hPa\n", comp_data.pressure);
-//	  printf("Humidity: %0.2f %%\n", comp_data.humidity);
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-	  rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev);   // reading and compensating temperature,pressure and humidity values from the sensor
-	  	  printf("Temperature: %0.2f °C\n", comp_data.temperature);
-		  printf("Pressure: %0.2f hPa\n", comp_data.pressure);
-		  printf("Humidity: %0.2f %%\n", comp_data.humidity);
-	  HAL_Delay(1000);
-
-//		 rslt = bme280_get_sensor_data(BME280_ALL, &uncomp_data, &dev);
-//		 	  printf("Temperature: %d °C\n", uncomp_data.temperature);
-//		 		  printf("Pressure: %d hPa\n", uncomp_data.pressure);
-//		 		  printf("Humidity: %d%%\n", uncomp_data.humidity);
-//		 		 HAL_Delay(500);
-  }
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev); // reading and compensating temperature,pressure and humidity values from the sensor
+		printf("Temperature: %0.2f °C\n", comp_data.temperature);
+		printf("Pressure: %0.2f hPa\n", comp_data.pressure);
+		printf("Humidity: %0.2f %%\n", comp_data.humidity);
+		HAL_Delay(1000);
+	}
 
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
 
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+	/** Configure the main internal regulator output voltage
+	 */
+	__HAL_RCC_PWR_CLK_ENABLE();
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 50;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 7;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+	RCC_OscInitStruct.PLL.PLLM = 8;
+	RCC_OscInitStruct.PLL.PLLN = 50;
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+	RCC_OscInitStruct.PLL.PLLQ = 7;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV8;
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV8;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI1_Init(void) {
 
-  /* USER CODE BEGIN SPI1_Init 0 */
+	/* USER CODE BEGIN SPI1_Init 0 */
 
-  /* USER CODE END SPI1_Init 0 */
+	/* USER CODE END SPI1_Init 0 */
 
-  /* USER CODE BEGIN SPI1_Init 1 */
+	/* USER CODE BEGIN SPI1_Init 1 */
 
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
+	/* USER CODE END SPI1_Init 1 */
+	/* SPI1 parameter configuration*/
+	hspi1.Instance = SPI1;
+	hspi1.Init.Mode = SPI_MODE_MASTER;
+	hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi1.Init.CRCPolynomial = 10;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN SPI1_Init 2 */
 
-  /* USER CODE END SPI1_Init 2 */
+	/* USER CODE END SPI1_Init 2 */
 
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_GPIO_Init(void) {
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	/* USER CODE BEGIN MX_GPIO_Init_1 */
+	/* USER CODE END MX_GPIO_Init_1 */
 
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOH_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+	/*Configure GPIO pin : PA4 */
+	GPIO_InitStruct.Pin = GPIO_PIN_4;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+	/* USER CODE BEGIN MX_GPIO_Init_2 */
+	/* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -283,18 +259,16 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
+	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
