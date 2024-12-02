@@ -17,8 +17,16 @@
  */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+
+/*
+ * 	PA4      ->  Chip-select
+ * 	PA5 	 ->  SCLK
+ * 	PA6(SDO) ->  MISO
+ * 	PA7(SDA) ->  MOSI
+ */
+
 #include "main.h"
-#include"bme280.h"
+#include "bme280.h"
 #include<stdint.h>
 #include<stdio.h>
 
@@ -26,11 +34,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 
-/* USER CODE BEGIN PFP */
+
 SPI_HandleTypeDef hspi1; // SPI Handle for SPI1
 int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr); // to read the data from sensor
-int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len,
-		void *intf_ptr);  // to write data to sensor
+int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);  // to write data to sensor
 
 void user_delay_us(uint32_t period, void *intf_ptr) {
 	HAL_Delay(period / 1000);  //  for millisecond delay
@@ -50,7 +57,46 @@ int main(void) {
 	int8_t rslt;
 	uint8_t cs_pin = GPIO_PIN_4;  // chip select pin / NSS pin
 
-	int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
+	// Initialize the sensor
+	dev.intf_ptr = &cs_pin;
+	dev.intf = BME280_SPI_INTF;
+	dev.read = read;
+	dev.write = write;
+	dev.delay_us = user_delay_us;
+
+	rslt = bme280_init(&dev);
+
+	// Check if the initialization was successful
+	if (rslt == BME280_OK) {
+		printf("BME280 initialization successful!\n");
+	} else {
+		printf("BME280 initialization failed with code: %d\n", rslt);
+		return 0;
+	}
+
+	// settings configuration for BME280
+	uint8_t settings_sel;
+	settings.osr_h = BME280_OVERSAMPLING_16X;
+	settings.osr_p = BME280_OVERSAMPLING_16X;
+	settings.osr_t = BME280_OVERSAMPLING_16X;
+	settings.filter = BME280_FILTER_COEFF_16;
+	settings.standby_time = BME280_STANDBY_TIME_1000_MS;
+
+	settings_sel = BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP| BME280_SEL_OSR_HUM | BME280_SEL_FILTER | BME280_SEL_STANDBY;
+	bme280_set_sensor_settings(settings_sel, &settings, &dev); // applying setting configurations to sensor
+	bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev); // setting sensor mode
+
+	while (1) {
+		rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev); // reading and compensating temperature,pressure and humidity values from the sensor
+		printf("Temperature: %0.2f°C\n", comp_data.temperature);
+		printf("Pressure: %0.2f hPa\n", comp_data.pressure);
+		printf("Humidity: %0.2f %%\n", comp_data.humidity);
+		HAL_Delay(1000);
+	}
+
+}
+
+int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 	{
 		uint8_t cs_pin = *(uint8_t*) intf_ptr;
 
@@ -103,49 +149,6 @@ int main(void) {
 
 		return 0;
 	}
-
-	// Initialize the sensor
-
-	dev.intf_ptr = &cs_pin;
-	dev.intf = BME280_SPI_INTF;
-	dev.read = spi_read;
-	dev.write = spi_write;
-	dev.delay_us = user_delay_us;
-
-	rslt = bme280_init(&dev);
-
-	// Check if the initialization was successful
-	if (rslt == BME280_OK) {
-		printf("BME280 initialization successful!\n");
-	} else {
-		printf("BME280 initialization failed with code: %d\n", rslt);
-		return 0;
-	}
-	// settings configuration for BME280
-	uint8_t settings_sel;
-	settings.osr_h = BME280_OVERSAMPLING_16X;
-	settings.osr_p = BME280_OVERSAMPLING_16X;
-	settings.osr_p = BME280_OVERSAMPLING_16X;
-	settings.filter = BME280_FILTER_COEFF_16;
-	settings.standby_time = BME280_STANDBY_TIME_1000_MS;
-
-	settings_sel = BME280_SEL_OSR_PRESS | BME280_SEL_OSR_TEMP| BME280_SEL_OSR_HUM | BME280_SEL_FILTER | BME280_SEL_STANDBY;
-	bme280_set_sensor_settings(settings_sel, &settings, &dev); // applying setting configurations to sensor
-	bme280_set_sensor_mode(BME280_POWERMODE_NORMAL, &dev); // applying sensor mode
-
-	/* USER CODE END 2 */
-
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
-	while (1) {
-		rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev); // reading and compensating temperature,pressure and humidity values from the sensor
-		printf("Temperature: %0.2f °C\n", comp_data.temperature);
-		printf("Pressure: %0.2f hPa\n", comp_data.pressure);
-		printf("Humidity: %0.2f %%\n", comp_data.humidity);
-		HAL_Delay(1000);
-	}
-
-}
 
 /**
  * @brief System Clock Configuration
