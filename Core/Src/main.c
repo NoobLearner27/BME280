@@ -97,12 +97,11 @@ int main(void) {
 }
 
 int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
-	{
-		uint8_t cs_pin = *(uint8_t*) intf_ptr;
+{
+		uint8_t cs_pin = *(uint8_t*) intf_ptr; // pointer to communicate with sensor
 
 		// Set the MSB of reg_addr for reading (MSB = 1)
 		reg_addr |= 0x80;
-		//  HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
 
 		// Pull CS low to select the sensor
 		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
@@ -121,12 +120,13 @@ int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 			return BME280_E_COMM_FAIL;
 		}
 
-		// Pull CS high to deselect the sensor
+		// Pull CS high to de-select the sensor
 		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
 		return BME280_OK;
-	}
+}
 
-	int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr) {
+int8_t write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr)
+{
 		uint8_t cs_pin = *(uint8_t*) intf_ptr;
 
 		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_RESET);
@@ -148,7 +148,7 @@ int8_t read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 		HAL_GPIO_WritePin(GPIOA, cs_pin, GPIO_PIN_SET);
 
 		return 0;
-	}
+}
 
 /**
  * @brief System Clock Configuration
